@@ -13,13 +13,18 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/ai": "^0.52.2",
+    "@tanstack/ai-anthropic": "^0.18.4",
+    "@tanstack/ai-client": "^0.30.0",
+    "@tanstack/ai-react": "^0.23.0",
     "@tanstack/react-devtools": "latest",
     "@tanstack/react-router": "latest",
     "@tanstack/react-router-devtools": "latest",
     "@tanstack/react-start": "latest",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "tailwindcss": "^4.1.18"
+    "tailwindcss": "^4.1.18",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.16",
