@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { clientTools, createChatClientOptions } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
+import { focusReleaseDef } from '../ai/tools'
 import type { Release } from '../ai/tools'
 import { listReleases } from '../ai/server-tools'
 
@@ -16,11 +18,33 @@ export const Route = createFileRoute('/console')({
 function ReleaseConsole() {
   const releases = Route.useLoaderData()
   const [input, setInput] = useState('')
+  const [focused, setFocused] = useState<{ id: string; note?: string } | null>(
+    null,
+  )
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const { messages, sendMessage, isLoading, error, stop } = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
+  /* --- client tool implementation --------------------------------------
+   * The definition came from the shared module; only the body is new. It
+   * closes over React state, which is precisely why it cannot live on the
+   * server. */
+  const focusRelease = focusReleaseDef.client(({ releaseId, note }) => {
+    setFocused({ id: releaseId, note })
+    return { focused: true }
   })
+
+  const chatOptions = useMemo(
+    () =>
+      createChatClientOptions({
+        connection: fetchServerSentEvents('/api/chat'),
+        tools: clientTools(focusRelease),
+      }),
+    // Built once: changing `connection` or `tools` recreates the underlying
+    // ChatClient. The tool closures only call state setters, so they are safe
+    // to freeze here.
+    [],
+  )
+
+  const { messages, sendMessage, isLoading, error, stop } = useChat(chatOptions)
 
   const submit = () => {
     const text = input.trim()
@@ -95,7 +119,12 @@ function ReleaseConsole() {
           <p className="island-kicker mb-3">Ledger</p>
           <div className="space-y-2">
             {releases.map((release) => (
-              <ReleaseCard key={release.id} release={release} />
+              <ReleaseCard
+                key={release.id}
+                release={release}
+                focused={focused?.id === release.id}
+                note={focused?.id === release.id ? focused.note : undefined}
+              />
             ))}
           </div>
         </aside>
@@ -127,7 +156,15 @@ function MessageView({ message }: { message: UIMessage }) {
   )
 }
 
-function ReleaseCard({ release }: { release: Release }) {
+function ReleaseCard({
+  release,
+  focused,
+  note,
+}: {
+  release: Release
+  focused: boolean
+  note?: string
+}) {
   const dot =
     release.status === 'healthy'
       ? 'bg-emerald-500'
@@ -136,7 +173,13 @@ function ReleaseCard({ release }: { release: Release }) {
         : 'bg-red-500'
 
   return (
-    <div className="rounded-xl border border-[var(--line)] px-3 py-2">
+    <div
+      className={`rounded-xl border px-3 py-2 transition ${
+        focused
+          ? 'border-[rgba(79,184,178,0.8)] bg-[rgba(79,184,178,0.12)]'
+          : 'border-[var(--line)]'
+      }`}
+    >
       <div className="flex items-center gap-2 text-xs">
         <span className={`h-2 w-2 rounded-full ${dot}`} />
         <span className="font-mono font-semibold">{release.id}</span>
@@ -150,6 +193,7 @@ function ReleaseCard({ release }: { release: Release }) {
       <p className="mt-1 text-[11px] text-[var(--sea-ink-soft)]">
         error rate {release.errorRate}%
       </p>
+      {note && <p className="mt-1 text-[11px] font-semibold">{note}</p>}
     </div>
   )
 }

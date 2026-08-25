@@ -50,3 +50,22 @@ export const searchReleasesDef = toolDefinition({
     matched: z.number(),
   }),
 })
+
+/* ------------------------------------------------------------------ *
+ * CLIENT TOOL — drives the UI. Runs in the browser because the thing it
+ * changes (which card is focused) only exists there.
+ * ------------------------------------------------------------------ */
+export const focusReleaseDef = toolDefinition({
+  name: 'focus_release',
+  description:
+    'Highlight a release in the operator console so the human can see the ' +
+    'one being discussed. Call it whenever you single out a release.',
+  inputSchema: z.object({
+    releaseId: z.string().meta({ description: 'Release id to highlight' }),
+    note: z
+      .string()
+      .optional()
+      .meta({ description: 'Short caption shown beside the highlight' }),
+  }),
+  outputSchema: z.object({ focused: z.boolean() }),
+})

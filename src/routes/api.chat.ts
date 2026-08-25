@@ -10,12 +10,14 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { textAdapter, MODEL_OPTIONS } from '../ai/model'
+import { focusReleaseDef } from '../ai/tools'
 import { searchReleases } from '../ai/server-tools'
 
 const SYSTEM = `You are the release copilot for the Geel deploy console.
 
 Ground every claim about deployments in the search_releases tool — never guess a
-version, stage or error rate.
+version, stage or error rate. When you single out one release, call
+focus_release so the operator's console highlights it.
 
 Keep replies short and operational.`
 
@@ -33,7 +35,10 @@ export const Route = createFileRoute('/api/chat')({
           adapter: textAdapter(),
           messages: params.messages,
           systemPrompts: [SYSTEM],
-          tools: [searchReleases],
+          // Server implementation + the bare definition of the tool the
+          // browser owns. The model sees one flat tool list either way; where
+          // a tool *runs* is an implementation detail of the definition.
+          tools: [searchReleases, focusReleaseDef],
 
           // Typed per model by the adapter — see src/ai/model.ts.
           modelOptions: MODEL_OPTIONS,
