@@ -4,7 +4,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 import { clientTools, createChatClientOptions } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
-import { focusReleaseDef } from '../ai/tools'
+import { focusReleaseDef, readOperatorContextDef } from '../ai/tools'
 import type { Release } from '../ai/tools'
 import { listReleases } from '../ai/server-tools'
 
@@ -23,20 +23,30 @@ function ReleaseConsole() {
   )
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  /* --- client tool implementation --------------------------------------
-   * The definition came from the shared module; only the body is new. It
-   * closes over React state, which is precisely why it cannot live on the
-   * server. */
+  /* --- client tool implementations -------------------------------------
+   * The definitions came from the shared module; only the bodies are new.
+   * These reach for React state and browser globals, which is precisely why
+   * they cannot live on the server. */
   const focusRelease = focusReleaseDef.client(({ releaseId, note }) => {
     setFocused({ id: releaseId, note })
     return { focused: true }
   })
 
+  const readOperatorContext = readOperatorContextDef.client(() => ({
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    locale: navigator.language,
+    localTime: new Date().toLocaleString(),
+    theme: document.documentElement.classList.contains('dark')
+      ? ('dark' as const)
+      : ('light' as const),
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+  }))
+
   const chatOptions = useMemo(
     () =>
       createChatClientOptions({
         connection: fetchServerSentEvents('/api/chat'),
-        tools: clientTools(focusRelease),
+        tools: clientTools(focusRelease, readOperatorContext),
       }),
     // Built once: changing `connection` or `tools` recreates the underlying
     // ChatClient. The tool closures only call state setters, so they are safe

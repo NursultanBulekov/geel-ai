@@ -69,3 +69,22 @@ export const focusReleaseDef = toolDefinition({
   }),
   outputSchema: z.object({ focused: z.boolean() }),
 })
+
+/* ------------------------------------------------------------------ *
+ * CLIENT TOOL — reads browser-only context. The server genuinely cannot
+ * answer this one, which is the whole point of an isomorphic tool system.
+ * ------------------------------------------------------------------ */
+export const readOperatorContextDef = toolDefinition({
+  name: 'read_operator_context',
+  description:
+    "Read the operator's local browser context (timezone, locale, theme, " +
+    'viewport). Use it before quoting times or suggesting a layout.',
+  inputSchema: z.object({}),
+  outputSchema: z.object({
+    timezone: z.string(),
+    locale: z.string(),
+    localTime: z.string(),
+    theme: z.enum(['light', 'dark']),
+    viewport: z.string(),
+  }),
+})
