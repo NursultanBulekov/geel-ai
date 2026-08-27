@@ -154,15 +154,66 @@ function MessageView({ message }: { message: UIMessage }) {
             : 'max-w-[92%] space-y-2 text-sm'
         }
       >
-        {message.parts.map((part, i) =>
-          part.type === 'text' && part.content ? (
-            <p key={i} className="whitespace-pre-wrap">
-              {part.content}
-            </p>
-          ) : null,
-        )}
+        {message.parts.map((part, i) => {
+          if (part.type === 'text') {
+            return part.content ? (
+              <p key={i} className="whitespace-pre-wrap">
+                {part.content}
+              </p>
+            ) : null
+          }
+
+          if (part.type === 'thinking') {
+            const done = message.parts.slice(i + 1).some((p) => p.type === 'text')
+            return (
+              <details
+                key={i}
+                open={!done}
+                className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs text-[var(--sea-ink-soft)]"
+              >
+                <summary className="cursor-pointer">
+                  {done ? 'Thought process' : 'Thinking…'}
+                </summary>
+                <pre className="mt-2 whitespace-pre-wrap font-sans">
+                  {part.content}
+                </pre>
+              </details>
+            )
+          }
+
+          if (part.type === 'tool-call') {
+            return <ToolCallView key={part.id} part={part} />
+          }
+
+          return null
+        })}
       </div>
     </div>
+  )
+}
+
+function ToolCallView({ part }: { part: any }) {
+  const state: string = part.state ?? 'pending'
+  const tone =
+    state === 'output-error'
+      ? 'text-red-600'
+      : state === 'output-available'
+        ? 'text-[var(--sea-ink)]'
+        : 'text-[var(--sea-ink-soft)]'
+
+  return (
+    <details className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs">
+      <summary className={`cursor-pointer font-mono ${tone}`}>
+        {part.name} · {state}
+      </summary>
+      <pre className="mt-2 overflow-x-auto text-[11px] text-[var(--sea-ink-soft)]">
+        {JSON.stringify(
+          { input: part.input ?? part.args, output: part.output },
+          null,
+          2,
+        )}
+      </pre>
+    </details>
   )
 }
 
