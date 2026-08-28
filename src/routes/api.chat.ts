@@ -52,7 +52,15 @@ export const Route = createFileRoute('/api/chat')({
 
           // Typed per model by the adapter — see src/ai/model.ts.
           modelOptions: MODEL_OPTIONS,
+
+          // Approval resumption: the client posts the operator's decision back
+          // on `resume`, correlated by these ids. Forwarding them is what makes
+          // a paused run continue rather than start over.
           threadId: params.threadId,
+          runId: params.runId,
+          parentRunId: params.parentRunId,
+          resume: params.resume,
+          state: params.state,
 
           agentLoopStrategy: maxIterations(12),
           abortController,
