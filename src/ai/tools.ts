@@ -52,6 +52,47 @@ export const searchReleasesDef = toolDefinition({
 })
 
 /* ------------------------------------------------------------------ *
+ * SERVER TOOL + APPROVAL — mutates production. `needsApproval: true`
+ * pauses the agent loop and surfaces a bound interrupt on the client;
+ * nothing runs until a human resolves it. `approvalSchema` makes the
+ * approval itself carry typed data (the change-ticket the operator
+ * signs off with), and the client may edit the arguments before
+ * approving via `resolveInterrupt(true, { editedArgs })`.
+ * ------------------------------------------------------------------ */
+export const promoteReleaseDef = toolDefinition({
+  name: 'promote_release',
+  description:
+    'Promote a release to the next stage (canary -> staging -> production). ' +
+    'This mutates live infrastructure and always requires human approval.',
+  inputSchema: z.object({
+    releaseId: z.string().meta({ description: 'Release id, e.g. "rel-1042"' }),
+    toStage: z
+      .enum(['staging', 'production'])
+      .meta({ description: 'Stage to promote into' }),
+    reason: z
+      .string()
+      .meta({ description: 'Short justification recorded in the audit log' }),
+  }),
+  outputSchema: z.object({
+    ok: z.boolean(),
+    release: releaseSchema.nullable(),
+    auditId: z.string(),
+    note: z.string(),
+  }),
+  needsApproval: true,
+  approvalSchema: {
+    approve: z.object({
+      changeTicket: z
+        .string()
+        .meta({ description: 'Change-management ticket authorising the push' }),
+    }),
+    reject: z.object({
+      reason: z.string().meta({ description: 'Why the operator declined' }),
+    }),
+  },
+})
+
+/* ------------------------------------------------------------------ *
  * CLIENT TOOL — drives the UI. Runs in the browser because the thing it
  * changes (which card is focused) only exists there.
  * ------------------------------------------------------------------ */
@@ -88,3 +129,11 @@ export const readOperatorContextDef = toolDefinition({
     viewport: z.string(),
   }),
 })
+
+/** Definitions the model is told about, in the order they are advertised. */
+export const toolDefinitions = [
+  searchReleasesDef,
+  promoteReleaseDef,
+  focusReleaseDef,
+  readOperatorContextDef,
+] as const

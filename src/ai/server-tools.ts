@@ -1,4 +1,4 @@
-import { searchReleasesDef } from './tools'
+import { searchReleasesDef, promoteReleaseDef } from './tools'
 import type { Release } from './tools'
 
 /**
@@ -78,5 +78,57 @@ export const searchReleases = searchReleasesDef.server(
         (!status || release.status === status),
     )
     return { releases: releases.map((r) => ({ ...r })), matched: releases.length }
+  },
+)
+
+const NEXT_STAGE = { canary: 'staging', staging: 'production' } as const
+
+export const promoteRelease = promoteReleaseDef.server(
+  async ({ releaseId, toStage, reason }) => {
+    const auditId = `audit-${Math.random().toString(36).slice(2, 10)}`
+    const release = ledger.find((r) => r.id === releaseId)
+
+    if (!release) {
+      return {
+        ok: false,
+        release: null,
+        auditId,
+        note: `No release ${releaseId} in the ledger.`,
+      }
+    }
+
+    // The approval gate is about intent, not correctness: still validate.
+    if (release.stage === 'production') {
+      return {
+        ok: false,
+        release: { ...release },
+        auditId,
+        note: `${releaseId} is already in production.`,
+      }
+    }
+    if (NEXT_STAGE[release.stage] !== toStage) {
+      return {
+        ok: false,
+        release: { ...release },
+        auditId,
+        note: `${releaseId} is in ${release.stage}; the next stage is ${NEXT_STAGE[release.stage]}, not ${toStage}.`,
+      }
+    }
+    if (release.status === 'rolled-back') {
+      return {
+        ok: false,
+        release: { ...release },
+        auditId,
+        note: `${releaseId} was rolled back and cannot be promoted.`,
+      }
+    }
+
+    release.stage = toStage
+    return {
+      ok: true,
+      release: { ...release },
+      auditId,
+      note: `Promoted ${releaseId} to ${toStage}. Reason: ${reason}`,
+    }
   },
 )

@@ -11,7 +11,7 @@ import {
 } from '@tanstack/ai'
 import { textAdapter, MODEL_OPTIONS } from '../ai/model'
 import { focusReleaseDef, readOperatorContextDef } from '../ai/tools'
-import { searchReleases } from '../ai/server-tools'
+import { promoteRelease, searchReleases } from '../ai/server-tools'
 
 const SYSTEM = `You are the release copilot for the Geel deploy console.
 
@@ -19,6 +19,10 @@ Ground every claim about deployments in the search_releases tool — never guess
 version, stage or error rate. When you single out one release, call
 focus_release so the operator's console highlights it. Before quoting a wall
 clock time, call read_operator_context.
+
+Promotions run through promote_release, which pauses for human approval. Say
+plainly what you are about to promote and why before you call it. If an
+approval is declined, acknowledge it and stop — do not retry the same promotion.
 
 Keep replies short and operational.`
 
@@ -39,7 +43,12 @@ export const Route = createFileRoute('/api/chat')({
           // Server implementation + the bare definition of the tool the
           // browser owns. The model sees one flat tool list either way; where
           // a tool *runs* is an implementation detail of the definition.
-          tools: [searchReleases, focusReleaseDef, readOperatorContextDef],
+          tools: [
+            searchReleases,
+            promoteRelease,
+            focusReleaseDef,
+            readOperatorContextDef,
+          ],
 
           // Typed per model by the adapter — see src/ai/model.ts.
           modelOptions: MODEL_OPTIONS,
