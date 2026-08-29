@@ -4,7 +4,11 @@ import { createServerFn } from '@tanstack/react-start'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 import { clientTools, createChatClientOptions } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
-import { focusReleaseDef, readOperatorContextDef } from '../ai/tools'
+import {
+  focusReleaseDef,
+  promoteReleaseDef,
+  readOperatorContextDef,
+} from '../ai/tools'
 import type { Release } from '../ai/tools'
 import { listReleases } from '../ai/server-tools'
 
@@ -21,6 +25,7 @@ function ReleaseConsole() {
   const [focused, setFocused] = useState<{ id: string; note?: string } | null>(
     null,
   )
+  const [ticket, setTicket] = useState('CHG-')
   const scrollRef = useRef<HTMLDivElement>(null)
 
   /* --- client tool implementations -------------------------------------
@@ -46,7 +51,12 @@ function ReleaseConsole() {
     () =>
       createChatClientOptions({
         connection: fetchServerSentEvents('/api/chat'),
-        tools: clientTools(focusRelease, readOperatorContext),
+        // The two `.client()` implementations plus the bare definition of the
+        // server-side tool that needs approval. Declaring `promoteReleaseDef`
+        // here executes nothing on the client — it is what types the approval
+        // interrupt, so `interrupt.originalArgs` and the approve/reject
+        // payloads are checked against the same Zod schemas the server uses.
+        tools: clientTools(focusRelease, readOperatorContext, promoteReleaseDef),
       }),
     // Built once: changing `connection` or `tools` recreates the underlying
     // ChatClient. The tool closures only call state setters, so they are safe
@@ -54,7 +64,8 @@ function ReleaseConsole() {
     [],
   )
 
-  const { messages, sendMessage, isLoading, error, stop } = useChat(chatOptions)
+  const { messages, sendMessage, isLoading, error, stop, interrupts } =
+    useChat(chatOptions)
 
   const submit = () => {
     const text = input.trim()
@@ -84,6 +95,32 @@ function ReleaseConsole() {
             {messages.map((message) => (
               <MessageView key={message.id} message={message} />
             ))}
+            {interrupts.map((interrupt) => {
+              if (interrupt.kind !== 'tool-approval') {
+                return <UnhandledInterrupt key={interrupt.id} kind={interrupt.kind} />
+              }
+              return (
+                <ApprovalCard
+                  key={interrupt.id}
+                  toolName={interrupt.toolName}
+                  args={interrupt.originalArgs}
+                  ticket={ticket}
+                  onTicketChange={setTicket}
+                  onApprove={() =>
+                    interrupt.resolveInterrupt(true, {
+                      payload: { changeTicket: ticket },
+                    })
+                  }
+                  onReject={() =>
+                    interrupt.resolveInterrupt(false, {
+                      payload: { reason: 'Declined in the console' },
+                    })
+                  }
+                  onCancel={() => interrupt.cancel()}
+                />
+              )
+            })}
+
             {error && (
               <p className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-600">
                 {error.message}
@@ -188,6 +225,78 @@ function MessageView({ message }: { message: UIMessage }) {
           return null
         })}
       </div>
+    </div>
+  )
+}
+
+function ApprovalCard({
+  toolName,
+  args,
+  ticket,
+  onTicketChange,
+  onApprove,
+  onReject,
+  onCancel,
+}: {
+  toolName: string
+  args: unknown
+  ticket: string
+  onTicketChange: (value: string) => void
+  onApprove: () => void
+  onReject: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-4">
+      <p className="text-sm font-semibold">
+        Approval required · <code>{toolName}</code>
+      </p>
+      <pre className="mt-2 overflow-x-auto rounded-lg bg-black/5 p-2 text-[11px]">
+        {JSON.stringify(args, null, 2)}
+      </pre>
+      <label className="mt-3 block text-xs font-semibold">
+        Change ticket
+        <input
+          value={ticket}
+          onChange={(e) => onTicketChange(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-[var(--line)] bg-transparent px-2 py-1 text-sm"
+        />
+      </label>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={onApprove}
+          className="rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white"
+        >
+          Approve
+        </button>
+        <button
+          type="button"
+          onClick={onReject}
+          className="rounded-full border border-[var(--line)] px-4 py-1.5 text-xs font-semibold"
+        >
+          Deny
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="ml-auto text-xs text-[var(--sea-ink-soft)] underline"
+        >
+          cancel run
+        </button>
+      </div>
+      <p className="mt-2 text-[11px] text-[var(--sea-ink-soft)]">
+        The agent loop is paused server-side. Nothing runs until you resolve
+        this.
+      </p>
+    </div>
+  )
+}
+
+function UnhandledInterrupt({ kind }: { kind: string }) {
+  return (
+    <div className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs text-[var(--sea-ink-soft)]">
+      Run paused on a <code>{kind}</code> interrupt this UI does not own.
     </div>
   )
 }
