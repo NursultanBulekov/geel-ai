@@ -64,8 +64,19 @@ function ReleaseConsole() {
     [],
   )
 
-  const { messages, sendMessage, isLoading, error, stop, interrupts } =
-    useChat(chatOptions)
+  const {
+    messages,
+    sendMessage,
+    isLoading,
+    status,
+    error,
+    stop,
+    clear,
+    queue,
+    cancelQueued,
+    interrupts,
+    resuming,
+  } = useChat(chatOptions)
 
   const submit = () => {
     const text = input.trim()
@@ -91,6 +102,20 @@ function ReleaseConsole() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="island-shell flex h-[34rem] flex-col overflow-hidden rounded-2xl">
+          <div className="flex items-center gap-2 border-b border-[var(--line)] px-4 py-3">
+            <StatusDot status={status} />
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--sea-ink-soft)]">
+              {resuming ? 'resuming' : status}
+            </span>
+            <button
+              type="button"
+              onClick={clear}
+              className="ml-auto rounded-full border border-[var(--line)] px-3 py-1 text-xs font-semibold text-[var(--sea-ink-soft)] transition hover:text-[var(--sea-ink)]"
+            >
+              Clear
+            </button>
+          </div>
+
           <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
             {messages.map((message) => (
               <MessageView key={message.id} message={message} />
@@ -120,6 +145,23 @@ function ReleaseConsole() {
                 />
               )
             })}
+
+            {queue.map((queued) => (
+              <div
+                key={queued.id}
+                className="flex items-center gap-2 rounded-xl border border-dashed border-[var(--line)] px-3 py-2 text-xs text-[var(--sea-ink-soft)]"
+              >
+                <span className="flex-1 truncate">
+                  queued:{' '}
+                  {typeof queued.content === 'string'
+                    ? queued.content
+                    : '[attachment]'}
+                </span>
+                <button type="button" onClick={() => cancelQueued(queued.id)}>
+                  cancel
+                </button>
+              </div>
+            ))}
 
             {error && (
               <p className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-600">
@@ -366,4 +408,14 @@ function ReleaseCard({
       {note && <p className="mt-1 text-[11px] font-semibold">{note}</p>}
     </div>
   )
+}
+
+function StatusDot({ status }: { status: string }) {
+  const tone =
+    status === 'streaming' || status === 'submitted'
+      ? 'bg-amber-500 animate-pulse'
+      : status === 'error'
+        ? 'bg-red-500'
+        : 'bg-emerald-500'
+  return <span className={`h-2 w-2 rounded-full ${tone}`} />
 }
