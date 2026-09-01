@@ -4,6 +4,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 import { clientTools, createChatClientOptions } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
+import { MODEL_CARD, SUPPORTS_PROVIDER_HOSTED_TOOLS } from '../ai/model'
 import {
   focusReleaseDef,
   promoteReleaseDef,
@@ -21,6 +22,7 @@ export const Route = createFileRoute('/console')({
 
 function ReleaseConsole() {
   const releases = Route.useLoaderData()
+
   const [input, setInput] = useState('')
   const [focused, setFocused] = useState<{ id: string; note?: string } | null>(
     null,
@@ -30,8 +32,8 @@ function ReleaseConsole() {
 
   /* --- client tool implementations -------------------------------------
    * The definitions came from the shared module; only the bodies are new.
-   * These reach for React state and browser globals, which is precisely why
-   * they cannot live on the server. */
+   * These close over React state, which is precisely why they cannot live
+   * on the server. */
   const focusRelease = focusReleaseDef.client(({ releaseId, note }) => {
     setFocused({ id: releaseId, note })
     return { focused: true }
@@ -94,10 +96,15 @@ function ReleaseConsole() {
   return (
     <main className="page-wrap px-4 pb-12 pt-10">
       <header className="mb-6">
-        <p className="island-kicker mb-2">TanStack AI</p>
+        <p className="island-kicker mb-2">TanStack AI · isomorphic tools</p>
         <h1 className="display-title text-3xl font-bold tracking-tight text-[var(--sea-ink)] sm:text-4xl">
           Release console
         </h1>
+        <p className="mt-2 max-w-2xl text-sm text-[var(--sea-ink-soft)]">
+          One <code>chat()</code> agent loop. Two tools run on the server, two
+          run in this tab, and promoting a release stops the loop until you say
+          so.
+        </p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -120,6 +127,7 @@ function ReleaseConsole() {
             {messages.map((message) => (
               <MessageView key={message.id} message={message} />
             ))}
+
             {interrupts.map((interrupt) => {
               if (interrupt.kind !== 'tool-approval') {
                 return <UnhandledInterrupt key={interrupt.id} kind={interrupt.kind} />
@@ -180,7 +188,7 @@ function ReleaseConsole() {
                   submit()
                 }
               }}
-              placeholder="Ask about a release…"
+              placeholder="Ask about a release, or ask to promote one…"
               className="flex-1 rounded-full border border-[var(--line)] bg-transparent px-4 py-2 text-sm outline-none focus:border-[rgba(79,184,178,0.6)]"
             />
             {isLoading ? (
@@ -204,23 +212,33 @@ function ReleaseConsole() {
           </div>
         </section>
 
-        <aside className="island-shell rounded-2xl p-4">
-          <p className="island-kicker mb-3">Ledger</p>
-          <div className="space-y-2">
-            {releases.map((release) => (
-              <ReleaseCard
-                key={release.id}
-                release={release}
-                focused={focused?.id === release.id}
-                note={focused?.id === release.id ? focused.note : undefined}
-              />
-            ))}
+        <aside className="space-y-4">
+          <ModelCard />
+          <div className="island-shell rounded-2xl p-4">
+            <p className="island-kicker mb-3">Ledger</p>
+            <div className="space-y-2">
+              {releases.map((release) => (
+                <ReleaseCard
+                  key={release.id}
+                  release={release}
+                  focused={focused?.id === release.id}
+                  note={focused?.id === release.id ? focused.note : undefined}
+                />
+              ))}
+            </div>
+            <p className="mt-3 text-[11px] text-[var(--sea-ink-soft)]">
+              Server-rendered from the ledger. The agent reads it through
+              <code> search_releases</code> and highlights cards through the
+              client-side <code>focus_release</code>.
+            </p>
           </div>
         </aside>
       </div>
     </main>
   )
 }
+
+/* --------------------------------- parts -------------------------------- */
 
 function MessageView({ message }: { message: UIMessage }) {
   const isUser = message.role === 'user'
@@ -268,6 +286,31 @@ function MessageView({ message }: { message: UIMessage }) {
         })}
       </div>
     </div>
+  )
+}
+
+function ToolCallView({ part }: { part: any }) {
+  const state: string = part.state ?? 'pending'
+  const tone =
+    state === 'output-error'
+      ? 'text-red-600'
+      : state === 'output-available'
+        ? 'text-[var(--sea-ink)]'
+        : 'text-[var(--sea-ink-soft)]'
+
+  return (
+    <details className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs">
+      <summary className={`cursor-pointer font-mono ${tone}`}>
+        {part.name} · {state}
+      </summary>
+      <pre className="mt-2 overflow-x-auto text-[11px] text-[var(--sea-ink-soft)]">
+        {JSON.stringify(
+          { input: part.input ?? part.args, output: part.output },
+          null,
+          2,
+        )}
+      </pre>
+    </details>
   )
 }
 
@@ -343,31 +386,6 @@ function UnhandledInterrupt({ kind }: { kind: string }) {
   )
 }
 
-function ToolCallView({ part }: { part: any }) {
-  const state: string = part.state ?? 'pending'
-  const tone =
-    state === 'output-error'
-      ? 'text-red-600'
-      : state === 'output-available'
-        ? 'text-[var(--sea-ink)]'
-        : 'text-[var(--sea-ink-soft)]'
-
-  return (
-    <details className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs">
-      <summary className={`cursor-pointer font-mono ${tone}`}>
-        {part.name} · {state}
-      </summary>
-      <pre className="mt-2 overflow-x-auto text-[11px] text-[var(--sea-ink-soft)]">
-        {JSON.stringify(
-          { input: part.input ?? part.args, output: part.output },
-          null,
-          2,
-        )}
-      </pre>
-    </details>
-  )
-}
-
 function ReleaseCard({
   release,
   focused,
@@ -406,6 +424,42 @@ function ReleaseCard({
         error rate {release.errorRate}%
       </p>
       {note && <p className="mt-1 text-[11px] font-semibold">{note}</p>}
+    </div>
+  )
+}
+
+function ModelCard() {
+  return (
+    <div className="island-shell rounded-2xl p-4 text-xs">
+      <p className="island-kicker mb-3">Model</p>
+      <dl className="space-y-1">
+        <Row label="id" value={MODEL_CARD.id} />
+        <Row label="adapter" value={MODEL_CARD.adapter} />
+        <Row label="context" value={MODEL_CARD.contextWindow} />
+        <Row label="max output" value={MODEL_CARD.maxOutput} />
+        <Row label="inputs" value={MODEL_CARD.inputModalities.join(', ')} />
+        <Row
+          label="hosted tools"
+          value={
+            SUPPORTS_PROVIDER_HOSTED_TOOLS
+              ? MODEL_CARD.providerHostedTools.join(', ')
+              : 'none for this model'
+          }
+        />
+      </dl>
+      <p className="mt-3 text-[11px] text-[var(--sea-ink-soft)]">
+        Read off the adapter's type maps, not hardcoded. No image, speech or
+        realtime panel appears because this model exposes no such surface here.
+      </p>
+    </div>
+  )
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2">
+      <dt className="w-24 shrink-0 text-[var(--sea-ink-soft)]">{label}</dt>
+      <dd className="m-0 font-mono">{value}</dd>
     </div>
   )
 }
