@@ -9,7 +9,8 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { textAdapter, MODEL_OPTIONS } from '../ai/model'
+import { textAdapter } from '../ai/adapter'
+import { MODEL_OPTIONS } from '../ai/model'
 import { focusReleaseDef, readOperatorContextDef } from '../ai/tools'
 import { promoteRelease, searchReleases } from '../ai/server-tools'
 

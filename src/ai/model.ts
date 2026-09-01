@@ -1,4 +1,3 @@
-import { anthropicText } from '@tanstack/ai-anthropic'
 import type {
   AnthropicChatModelToolCapabilitiesByName,
   AnthropicModelInputModalitiesByName,
@@ -13,8 +12,6 @@ import type {
  */
 export const MODEL = 'claude-opus-5' as const
 export type Model = typeof MODEL
-
-export const textAdapter = () => anthropicText(MODEL)
 
 /**
  * Input modalities, read off the adapter's type map rather than asserted here.

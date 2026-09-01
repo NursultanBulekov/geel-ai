@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 import { clientTools, createChatClientOptions } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
@@ -11,9 +10,7 @@ import {
   readOperatorContextDef,
 } from '../ai/tools'
 import type { Release } from '../ai/tools'
-import { listReleases } from '../ai/server-tools'
-
-const getReleases = createServerFn().handler(async () => listReleases())
+import { getReleases } from '../ai/releases-fn'
 
 export const Route = createFileRoute('/console')({
   component: ReleaseConsole,
