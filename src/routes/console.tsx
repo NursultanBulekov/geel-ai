@@ -121,6 +121,7 @@ function ReleaseConsole() {
           </div>
 
           <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
+            {messages.length === 0 && <EmptyState onPick={setInput} />}
             {messages.map((message) => (
               <MessageView key={message.id} message={message} />
             ))}
@@ -469,4 +470,28 @@ function StatusDot({ status }: { status: string }) {
         ? 'bg-red-500'
         : 'bg-emerald-500'
   return <span className={`h-2 w-2 rounded-full ${tone}`} />
+}
+
+function EmptyState({ onPick }: { onPick: (value: string) => void }) {
+  const prompts = [
+    'Which services are degraded right now?',
+    'Summarise checkout and highlight the canary.',
+    'Promote rel-1042 to staging.',
+    'What time is it for me, and is anything unsafe to ship?',
+  ]
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-[var(--sea-ink-soft)]">Try one of these:</p>
+      {prompts.map((prompt) => (
+        <button
+          key={prompt}
+          type="button"
+          onClick={() => onPick(prompt)}
+          className="block w-full rounded-xl border border-[var(--line)] px-3 py-2 text-left text-sm transition hover:border-[rgba(79,184,178,0.6)]"
+        >
+          {prompt}
+        </button>
+      ))}
+    </div>
+  )
 }
