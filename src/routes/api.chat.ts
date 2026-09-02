@@ -9,6 +9,7 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import type { ChatMiddleware } from '@tanstack/ai'
 import { textAdapter } from '../ai/adapter'
 import { MODEL_OPTIONS } from '../ai/model'
 import { focusReleaseDef, readOperatorContextDef } from '../ai/tools'
@@ -27,6 +28,24 @@ approval is declined, acknowledge it and stop — do not retry the same promotio
 
 Keep replies short and operational.`
 
+/**
+ * Lifecycle observation belongs in middleware — `chat()` has no onFinish
+ * callback. This one just traces the loop to the server log; swap the body for
+ * your tracer of choice.
+ */
+const trace: ChatMiddleware = {
+  name: 'trace',
+  onBeforeToolCall(_ctx, call) {
+    console.log(`[tool] -> ${call.toolCall.function.name}`)
+  },
+  onUsage(_ctx, usage) {
+    console.log(`[usage] ${JSON.stringify(usage)}`)
+  },
+  onFinish(ctx, info) {
+    console.log(`[finish] ${info.finishReason} after ${ctx.iteration} steps`)
+  },
+}
+
 export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
@@ -37,11 +56,25 @@ export const Route = createFileRoute('/api/chat')({
         // malformed payload, which Start returns to the client for us.
         const params = await chatParamsFromRequest(request)
 
+        if (!process.env.ANTHROPIC_API_KEY) {
+          // The adapter reads the key at construction time and throws; catching
+          // it here turns an opaque 500 into something the console can render.
+          return Response.json(
+            {
+              error:
+                'ANTHROPIC_API_KEY is not set. Copy .env.example to .env and ' +
+                'add your key, then restart the dev server.',
+            },
+            { status: 503 },
+          )
+        }
+
         const stream = chat({
           adapter: textAdapter(),
           messages: params.messages,
           systemPrompts: [SYSTEM],
-          // Server implementation + the bare definition of the tool the
+
+          // Server implementations + bare definitions for the two tools the
           // browser owns. The model sees one flat tool list either way; where
           // a tool *runs* is an implementation detail of the definition.
           tools: [
@@ -64,6 +97,7 @@ export const Route = createFileRoute('/api/chat')({
           state: params.state,
 
           agentLoopStrategy: maxIterations(12),
+          middleware: [trace],
           abortController,
         })
 
@@ -72,3 +106,4 @@ export const Route = createFileRoute('/api/chat')({
     },
   },
 })
+

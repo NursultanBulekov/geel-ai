@@ -6,8 +6,10 @@ import { z } from 'zod'
  *
  * These are the *contracts* only — no implementation, so this module is safe to
  * import from both the server route and the browser bundle. The server attaches
- * `.server()` implementations; a shared name and shared Zod schemas mean a
- * drift between the two sides is a type error rather than a runtime surprise.
+ * `.server()` implementations (see `server-tools.ts`); the page attaches
+ * `.client()` implementations (see `routes/console.tsx`). Both sides share one
+ * name, one Zod input schema and one Zod output schema, so a drift between them
+ * is a type error rather than a runtime surprise.
  */
 
 const releaseSchema = z.object({
