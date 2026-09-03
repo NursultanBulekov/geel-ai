@@ -185,3 +185,76 @@ Files prefixed with `demo` can be safely deleted. They are there to provide a st
 You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
 
 For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+
+---
+
+## AI console (TanStack AI)
+
+A single page, `/console`, and a single endpoint, `/api/chat`, showing an agent
+loop driven by `chat()` from `@tanstack/ai` with the Anthropic adapter.
+
+```
+src/ai/model.ts          model id + capabilities, derived from the adapter's types
+src/ai/adapter.ts        anthropicText() — server only, keeps the SDK out of the browser
+src/ai/tools.ts          isomorphic toolDefinition()s (contracts, no implementations)
+src/ai/server-tools.ts   .server() implementations + the release ledger
+src/ai/releases-fn.ts    server function that seeds the page loader
+src/routes/api.chat.ts   the chat() endpoint
+src/routes/console.tsx   .client() implementations + headless UI
+```
+
+### The four tools
+
+| Tool | Runs | Why there |
+| --- | --- | --- |
+| `search_releases` | server | The ledger never leaves the server |
+| `promote_release` | server, **needs approval** | Mutates infrastructure |
+| `focus_release` | client | Changes React state in the operator's tab |
+| `read_operator_context` | client | Timezone, locale and viewport only the browser knows |
+
+All four share one `toolDefinition()` with one Zod input and output schema. The
+server attaches `.server()`, the page attaches `.client()`, and a drift between
+the two sides is a compile error.
+
+### Approval flow
+
+`promote_release` sets `needsApproval: true` and an `approvalSchema`. The agent
+loop pauses server-side; the client receives a bound interrupt and renders it:
+
+```ts
+interrupt.resolveInterrupt(true,  { payload: { changeTicket } })
+interrupt.resolveInterrupt(false, { payload: { reason } })
+interrupt.cancel()
+```
+
+The route forwards `resume`, `runId` and `parentRunId` from
+`chatParamsFromRequest`, which is what lets the paused run continue rather than
+restart.
+
+### Headless UI
+
+There is no UI kit. `useChat` returns state (`messages`, `status`, `interrupts`,
+`queue`, `error`, `resuming`) and the page renders `message.parts` itself —
+`text`, `thinking`, `tool-call` — so tool calls, reasoning and approvals are all
+visible as they stream.
+
+### Provider honesty
+
+`src/ai/model.ts` derives input modalities and provider-hosted tool support from
+the adapter's own type maps with `satisfies`, so the UI cannot advertise a
+capability the selected model does not have. `claude-opus-5` types its hosted
+tool list as empty, so this app attaches none and shows no image, speech or
+realtime panel. `modelOptions` carries only `max_tokens`: the Messages API
+rejects sampling parameters on this model, and thinking runs adaptively when
+`thinking` is omitted.
+
+### Running it
+
+```bash
+cp .env.example .env      # add your ANTHROPIC_API_KEY
+bun install
+bun run dev               # http://localhost:3000/console
+```
+
+Without a key the endpoint returns a 503 explaining what is missing; a malformed
+AG-UI body returns a 400.
